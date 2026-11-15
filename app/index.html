@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reelkoch</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; }
+  form { display: flex; gap: 8px; } input { flex: 1; padding: 8px; font: inherit; }
+  button { padding: 8px 14px; font: inherit; cursor: pointer; }
+  li { padding: 8px 0; border-bottom: 1px solid #ddd; list-style: none; }
+  ul { padding: 0; } small { color: #777; } .fehler { color: #b00; }
+  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } a { color: #8bf; } li { border-color: #333; } }
+</style>
+<h1>Rezepte aus Reels</h1>
+<form id="f"><input id="url" type="url" placeholder="Link zum Reel einfügen" required><button>Rezept erstellen</button></form>
+<p id="meldung"></p>
+<ul id="liste"></ul>
+<script>
+const e = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function laden() {
+  const r = await (await fetch("/api/rezepte")).json();
+  liste.innerHTML = r.map(x => `<li>${x.status === "fertig"
+      ? `<a href="/rezept/${x.id}.pdf" target="_blank">${e(x.titel)}</a>`
+      : `<a href="${e(x.url)}">${e(x.url)}</a> – <b class="${x.status === "Fehler" ? "fehler" : ""}">${e(x.status)}</b> <small>${e(x.fehler)}</small>`}
+    <br><small>${e(x.datum)} · <a href="#" onclick="weg('${x.id}');return false">löschen</a></small></li>`).join("");
+  if (r.some(x => !["fertig", "Fehler"].includes(x.status))) setTimeout(laden, 4000);
+}
+async function weg(id) { if (confirm("Rezept löschen?")) { await fetch("/api/rezept/" + id, {method: "DELETE"}); laden(); } }
+f.onsubmit = async ev => {
+  ev.preventDefault();
+  const r = await fetch("/api/rezept", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({url: url.value})});
+  meldung.textContent = r.ok ? "Wird verarbeitet …" : (await r.json()).detail;
+  if (r.ok) url.value = "";
+  laden();
+};
+laden();
+</script>

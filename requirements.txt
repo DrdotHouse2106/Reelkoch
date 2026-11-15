@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+anthropic>=2.8
+httpx
+faster-whisper
+weasyprint
+yt-dlp

@@ -1,0 +1,10 @@
+[Unit]
+Description=yt-dlp täglich aktualisieren
+
+[Timer]
+OnCalendar=*-*-* 04:40
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

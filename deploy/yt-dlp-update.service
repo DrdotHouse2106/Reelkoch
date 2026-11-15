@@ -1,0 +1,7 @@
+[Unit]
+Description=yt-dlp aktualisieren
+
+[Service]
+Type=oneshot
+User=rezepte
+ExecStart=/opt/rezepte/.venv/bin/pip install -q -U yt-dlp
