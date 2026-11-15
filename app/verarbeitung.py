@@ -12,6 +12,8 @@ DATEN = Path(os.environ.get("DATEN_DIR", "/var/lib/rezepte"))
 MODELL = os.environ.get("CLAUDE_MODELL", "claude-opus-5-5")
 WHISPER_MODELL = os.environ.get("WHISPER_MODELL", "small")
 MAX_BILDER = int(os.environ.get("MAX_BILDER", "15"))
+# US-Dollar je 1 Mio. Token (Eingabe, Ausgabe), nur für die Kostenanzeige
+PREISE = {"claude-opus-5-5": (4, 20), "claude-sonnet-5-5": (2, 10), "claude-opus-4-8": (5, 25), "claude-sonnet-5": (2, 10)}
 
 _whisper = None  # wird beim ersten Auftrag geladen (spart Speicher beim Start)
 
@@ -106,7 +108,13 @@ def _claude(beschreibung: str, transkript: str, bilder: list[Path]) -> dict:
     if antwort.stop_reason == "refusal":
         raise RuntimeError("Claude hat die Anfrage abgelehnt.")
     text = next(b.text for b in antwort.content if b.type == "text")
-    return json.loads(text)
+    rezept = json.loads(text)
+    u = antwort.usage
+    ein = u.input_tokens + (u.cache_read_input_tokens or 0) + (u.cache_creation_input_tokens or 0)
+    preis = PREISE.get(antwort.model)
+    rezept["verbrauch"] = {"modell": antwort.model, "eingabe": ein, "ausgabe": u.output_tokens,
+                           "kosten_usd": preis and round((ein * preis[0] + u.output_tokens * preis[1]) / 1e6, 4)}
+    return rezept
 
 
 def _pdf(rezept: dict, bild: Path | None, ziel: Path):
@@ -144,7 +152,7 @@ def _paperless(pdf: Path, titel: str):
                timeout=60).raise_for_status()
 
 
-def verarbeiten(auftrag: dict, status):
+def verarbeiten(auftrag: dict, status, pdf: Path):
     """Führt alle Schritte aus. status(text) meldet den Fortschritt an die Oberfläche."""
     tmp = DATEN / "tmp"  # nicht /tmp: im LXC liegt /tmp im Arbeitsspeicher
     tmp.mkdir(parents=True, exist_ok=True)
@@ -162,7 +170,6 @@ def verarbeiten(auftrag: dict, status):
         rezept["quelle"] = auftrag["url"]
         idx = rezept.pop("bild_index", 0)
         status("PDF wird erstellt")
-        pdf = DATEN / f"{auftrag['id']}.pdf"
         _pdf(rezept, bilder[idx] if 0 <= idx < len(bilder) else (bilder[0] if bilder else None), pdf)
         try:
             _paperless(pdf, rezept["titel"])

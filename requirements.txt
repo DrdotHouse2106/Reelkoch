@@ -5,3 +5,4 @@ httpx
 faster-whisper
 weasyprint
 yt-dlp
+segno

@@ -4,34 +4,175 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Reelkoch</title>
 <style>
-  body { font: 16px/1.5 system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; }
-  form { display: flex; gap: 8px; } input { flex: 1; padding: 8px; font: inherit; }
-  button { padding: 8px 14px; font: inherit; cursor: pointer; }
-  li { padding: 8px 0; border-bottom: 1px solid #ddd; list-style: none; }
-  ul { padding: 0; } small { color: #777; } .fehler { color: #b00; }
-  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } a { color: #8bf; } li { border-color: #333; } }
+  :root { --bg: #f6f4f0; --karte: #fff; --text: #1d1d1b; --leise: #6b6b66; --linie: #e3e0d9; --akzent: #c2410c; --fehler: #b42318; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161615; --karte: #222220; --text: #eeeeea; --leise: #a0a09a; --linie: #3a3a36; --akzent: #fb923c; --fehler: #f97066; } }
+  * { box-sizing: border-box; }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .karte { background: var(--karte); border: 1px solid var(--linie); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .schmal { max-width: 380px; margin: 10vh auto 0; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; } h2 { font-size: 1.15rem; margin: 0 0 12px; }
+  label { display: block; font-size: .9rem; color: var(--leise); margin: 10px 0 4px; }
+  input { width: 100%; padding: 10px 12px; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--linie); border-radius: 8px; }
+  button { padding: 10px 16px; font: inherit; border: 0; border-radius: 8px; background: var(--akzent); color: #fff; cursor: pointer; margin-top: 14px; }
+  button.leise { background: none; color: var(--akzent); padding: 4px 6px; margin: 0; }
+  a { color: var(--akzent); }
+  .leise { color: var(--leise); font-size: .9rem; } .fehler { color: var(--fehler); }
+  nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  nav b { margin-right: auto; font-size: 1.2rem; }
+  .zeile { display: flex; gap: 8px; } .zeile input { flex: 1; } .zeile button { margin: 0; }
+  ul { list-style: none; padding: 0; margin: 0; } li { padding: 10px 0; border-bottom: 1px solid var(--linie); }
+  li:last-child { border: 0; } code { word-break: break-all; }
+  .qr svg { background: #fff; border-radius: 8px; display: block; margin: 8px 0; }
+  [hidden] { display: none !important; }
 </style>
-<h1>Rezepte aus Reels</h1>
-<form id="f"><input id="url" type="url" placeholder="Link zum Reel einfügen" required><button>Rezept erstellen</button></form>
-<p id="meldung"></p>
-<ul id="liste"></ul>
+<main>
+  <!-- Ersteinrichtung -->
+  <form id="v-einrichten" class="karte schmal" hidden>
+    <h1>Reelkoch einrichten</h1>
+    <p class="leise">Lege das Admin-Konto an. Den Einrichtungscode findest du auf dem Server in <code>/var/lib/rezepte/einrichtungscode</code> oder im Log des Dienstes.</p>
+    <label>Einrichtungscode</label><input name="code" required autocomplete="off">
+    <label>Benutzername</label><input name="name" required autocomplete="username">
+    <label>Passwort (mind. 10 Zeichen)</label><input name="passwort" type="password" minlength="10" required autocomplete="new-password">
+    <button>Konto anlegen</button><p class="fehler"></p>
+  </form>
+
+  <!-- Anmeldung -->
+  <form id="v-anmelden" class="karte schmal" hidden>
+    <h1>Reelkoch</h1><p class="leise">Rezepte aus Reels</p>
+    <label>Benutzername</label><input name="name" required autocomplete="username">
+    <label>Passwort</label><input name="passwort" type="password" required autocomplete="current-password">
+    <label>Code aus der Authenticator-App</label><input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="nur wenn schon eingerichtet">
+    <button>Anmelden</button><p class="fehler"></p>
+  </form>
+
+  <!-- 2FA einrichten -->
+  <form id="v-2fa" class="karte schmal" hidden>
+    <h1>Zwei-Faktor-Anmeldung</h1>
+    <p class="leise">Pflicht für alle Konten. Scanne den QR-Code mit einer Authenticator-App (z. B. Apple Passwörter, Google Authenticator, 2FAS) und gib den angezeigten Code ein.</p>
+    <div class="qr"></div><p class="leise">Oder von Hand: <code id="geheim"></code></p>
+    <label>6-stelliger Code</label><input name="code" inputmode="numeric" autocomplete="one-time-code" required>
+    <button>Bestätigen</button> <button type="button" class="leise" onclick="abmelden()">Abmelden</button><p class="fehler"></p>
+  </form>
+
+  <!-- Angemeldet -->
+  <div id="v-app" hidden>
+    <nav><b>Reelkoch</b>
+      <button class="leise" onclick="zeige('rezepte')">Rezepte</button>
+      <button class="leise" onclick="zeige('konto')">Konto</button>
+      <button class="leise" id="nav-benutzer" onclick="zeige('benutzer')">Benutzer</button>
+      <button class="leise" onclick="abmelden()">Abmelden</button>
+    </nav>
+
+    <section id="s-rezepte">
+      <form id="f-rezept" class="karte"><div class="zeile"><input name="url" type="url" placeholder="Link zum Reel einfügen" required><button>Rezept erstellen</button></div><p class="fehler"></p></form>
+      <div class="karte"><ul id="liste"></ul></div>
+    </section>
+
+    <section id="s-konto" hidden>
+      <form id="f-passwort" class="karte"><h2>Passwort ändern</h2>
+        <label>Altes Passwort</label><input name="alt" type="password" required autocomplete="current-password">
+        <label>Neues Passwort (mind. 10 Zeichen)</label><input name="neu" type="password" minlength="10" required autocomplete="new-password">
+        <button>Speichern</button><p class="fehler"></p></form>
+      <div class="karte"><h2>API-Token für den iPhone-Kurzbefehl</h2>
+        <p class="leise">Wird nur einmal angezeigt. Ein neues Token ersetzt das alte.</p>
+        <code id="token"></code><br><button onclick="tokenNeu()">Neues Token erzeugen</button></div>
+    </section>
+
+    <section id="s-benutzer" hidden>
+      <form id="f-benutzer" class="karte"><h2>Neuer Benutzer</h2>
+        <label>Benutzername</label><input name="name" required autocomplete="off">
+        <label>Startpasswort (mind. 10 Zeichen)</label><input name="passwort" minlength="10" required autocomplete="off">
+        <label><input name="admin" type="checkbox" style="width:auto"> Admin</label>
+        <button>Anlegen</button><p class="fehler"></p>
+        <p class="leise">Der Benutzer richtet bei der ersten Anmeldung die Zwei-Faktor-Anmeldung ein.</p></form>
+      <div class="karte"><ul id="benutzerliste"></ul></div>
+    </section>
+  </div>
+</main>
 <script>
-const e = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-async function laden() {
-  const r = await (await fetch("/api/rezepte")).json();
-  liste.innerHTML = r.map(x => `<li>${x.status === "fertig"
-      ? `<a href="/rezept/${x.id}.pdf" target="_blank">${e(x.titel)}</a>`
-      : `<a href="${e(x.url)}">${e(x.url)}</a> – <b class="${x.status === "Fehler" ? "fehler" : ""}">${e(x.status)}</b> <small>${e(x.fehler)}</small>`}
-    <br><small>${e(x.datum)} · <a href="#" onclick="weg('${x.id}');return false">löschen</a></small></li>`).join("");
-  if (r.some(x => !["fertig", "Fehler"].includes(x.status))) setTimeout(laden, 4000);
+const $ = s => document.querySelector(s);
+const e = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let ich = null, timer = null;
+
+async function api(pfad, daten, methode) {
+  const r = await fetch(pfad, {method: methode || (daten ? "POST" : "GET"),
+    headers: daten ? {"Content-Type": "application/json"} : {}, body: daten && JSON.stringify(daten)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.detail || "Fehler " + r.status);
+  return j;
 }
-async function weg(id) { if (confirm("Rezept löschen?")) { await fetch("/api/rezept/" + id, {method: "DELETE"}); laden(); } }
-f.onsubmit = async ev => {
-  ev.preventDefault();
-  const r = await fetch("/api/rezept", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({url: url.value})});
-  meldung.textContent = r.ok ? "Wird verarbeitet …" : (await r.json()).detail;
-  if (r.ok) url.value = "";
-  laden();
-};
-laden();
+// Formular absenden: Daten als Objekt, Fehler unter dem Formular anzeigen
+function formular(id, fn) {
+  const f = $(id);
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const d = Object.fromEntries(new FormData(f));
+    f.querySelectorAll("input[type=checkbox]").forEach(c => d[c.name] = c.checked);
+    f.querySelector(".fehler").textContent = "";
+    try { await fn(d, f); } catch (x) { f.querySelector(".fehler").textContent = x.message; }
+  };
+}
+function ansicht(id) { document.querySelectorAll("main > *").forEach(v => v.hidden = v.id !== id); }
+function zeige(teil) {
+  ["rezepte", "konto", "benutzer"].forEach(t => $("#s-" + t).hidden = t !== teil);
+  if (teil === "rezepte") laden();
+  if (teil === "benutzer") benutzerLaden();
+}
+
+async function start() {
+  const s = await api("/api/status");
+  ich = s.benutzer;
+  if (!s.eingerichtet) return ansicht("v-einrichten");
+  if (!ich) return ansicht("v-anmelden");
+  if (!ich.voll) {
+    ansicht("v-2fa");
+    const t = await api("/api/2fa/start", {});
+    $(".qr").innerHTML = t.qr; $("#geheim").textContent = t.geheim;
+    return;
+  }
+  ansicht("v-app");
+  $("#nav-benutzer").hidden = !ich.admin;
+  zeige("rezepte");
+}
+async function abmelden() { await api("/api/abmelden", {}); location.reload(); }
+
+formular("#v-einrichten", async d => { await api("/api/einrichten", d); start(); });
+formular("#v-anmelden", async (d, f) => { await api("/api/anmelden", d); f.reset(); start(); });
+formular("#v-2fa", async d => { await api("/api/2fa/bestaetigen", d); start(); });
+formular("#f-passwort", async (d, f) => { await api("/api/passwort", d); f.reset(); f.querySelector(".fehler").textContent = "Gespeichert."; });
+formular("#f-benutzer", async (d, f) => { await api("/api/benutzer", d); f.reset(); benutzerLaden(); });
+formular("#f-rezept", async (d, f) => { await api("/api/rezept", d); f.reset(); laden(); });
+
+async function laden() {
+  clearTimeout(timer);
+  const r = await api("/api/rezepte");
+  $("#liste").innerHTML = r.length ? r.map(x => `<li>${x.status === "fertig"
+      ? `<a href="/rezept/${x.id}.pdf" target="_blank">${e(x.titel)}</a>`
+      : `<a href="${e(x.url)}" target="_blank" rel="noopener">${e(x.url)}</a><br><b class="${x.status === "Fehler" ? "fehler" : ""}">${e(x.status)}</b> <span class="leise">${e(x.fehler)}</span>`}
+    <br><span class="leise">${e(x.datum)}${x.von ? " · " + e(x.von) : ""}${x.kosten_usd != null ? " · " + x.kosten_usd.toFixed(2).replace(".", ",") + " $" : ""}${ich.admin || x.von === ich.name
+      ? ` · <button class="leise" onclick="rezeptWeg('${x.id}')">löschen</button>` : ""}</span></li>`).join("")
+    : `<li class="leise">Noch keine Rezepte. Füge oben einen Link ein.</li>`;
+  if (r.some(x => !["fertig", "Fehler"].includes(x.status))) timer = setTimeout(laden, 4000);
+}
+async function rezeptWeg(id) { if (confirm("Rezept löschen?")) { await api("/api/rezept/" + id, null, "DELETE"); laden(); } }
+async function tokenNeu() {
+  if (confirm("Neues Token erzeugen? Das alte funktioniert dann nicht mehr.")) $("#token").textContent = (await api("/api/token", {})).token;
+}
+
+async function benutzerLaden() {
+  const b = await api("/api/benutzer");
+  $("#benutzerliste").innerHTML = b.map(x => `<li><b>${e(x.name)}</b>${x.admin ? " (Admin)" : ""}<br>
+    <span class="leise">${x.zwei_faktor ? "2FA aktiv" : "2FA noch nicht eingerichtet"}${x.token ? " · API-Token" : ""}
+    · <button class="leise" onclick="zuruecksetzen('${x.name}')">zurücksetzen</button>
+    ${x.name !== ich.name ? `· <button class="leise" onclick="benutzerWeg('${x.name}')">löschen</button>` : ""}</span></li>`).join("");
+}
+async function zuruecksetzen(name) {
+  const pw = prompt(`Neues Startpasswort für ${name} (mind. 10 Zeichen). 2FA und API-Token werden ebenfalls zurückgesetzt.`);
+  if (pw) try { await api("/api/benutzer/" + name, {passwort: pw}); benutzerLaden(); } catch (x) { alert(x.message); }
+}
+async function benutzerWeg(name) {
+  if (confirm(`Benutzer ${name} löschen?`)) try { await api("/api/benutzer/" + name, null, "DELETE"); benutzerLaden(); } catch (x) { alert(x.message); }
+}
+start();
 </script>
