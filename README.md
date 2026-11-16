@@ -108,3 +108,7 @@ Im Reel dann **Teilen → Link kopieren** bzw. **Teilen → Rezept erstellen**.
 Jedes Rezept speichert Token-Verbrauch und geschätzte Kosten (`verbrauch` im JSON, Zeile im Log). Die Liste zeigt die Kosten in US-Dollar an.
 
 Ein Reel mit 15 Bildern braucht bei Claude Opus 5.5 rund 20.000 Eingabe-Token (Hochformat-Bilder), also etwa 8–10 Cent. Mit `CLAUDE_MODELL=claude-sonnet-5-5` ist es etwa die Hälfte. Lehnt das Modell eine Anfrage ab, springt die serverseitige Ausweichlösung (`fallbacks: "default"`) ein.
+
+## Lizenz
+
+[MIT](LICENSE) – frei nutzbar, auch kommerziell, ohne Gewähr.
