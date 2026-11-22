@@ -38,6 +38,11 @@ SCHEMA = {
 ANWEISUNG = """Du bekommst Beschreibung, Transkript und Standbilder eines Koch-Reels.
 Erstelle daraus das Rezept als JSON.
 - Schreibe alles auf Deutsch, auch wenn das Reel eine andere Sprache hat.
+- Auch der Titel ist deutsch: übliche deutsche Gerichtsnamen, kein englischer Satztitel
+  (Eigennamen wie Panini, Quesadilla oder Wrap dürfen bleiben).
+- Zutaten mit deutschen Bezeichnungen (z. B. grobes Salz statt „Koscheres Salz“).
+- Amerikanische Maße umrechnen und nur metrisch angeben: Tassen/cups in ml oder g, Unzen in g,
+  Pfund in g, Fahrenheit in °C; Löffelmaße als EL/TL. Preise in Dollar weglassen.
 - Erfinde nichts. Fehlende Mengen übernimmst du so, wie sie gesagt oder gezeigt werden
   (z. B. „etwas“, „1 Schuss“). Ist gar keine Menge erkennbar, lass „menge“ leer.
 - Mengen aus Text-Einblendungen in den Bildern zählen genauso wie gesprochene.
